@@ -1,32 +1,16 @@
 ---
-description: Audio click and rotate invariants. Do not reintroduce these bugs.
+description: Audio engine invariants. Do not reintroduce these bugs.
 alwaysApply: true
 ---
 
 # AutoHarp audio — do not "fix" these again
 
-The glitchy click is a **discontinuity or render hitch**, not a short envelope. Attack sliders are not the fix. Attack 0 must not click.
-
-## One instrument
-
-It is one drone. Chord change = retune the same oscillators. Do **not**:
-- copy a second "old chord" and crossfade/swap
-- restart the envelope or slam `mEnv`/`mAmp` to 0
-- call `applyChord` twice (quality then note each used to apply)
-
-Store note + quality, apply **once** at the start of `process()`.
-
-## Never jump the output
-
-- Keep phase and filter on a live voice. Never `phase = 0` / `filt = 0` on a sounding slot.
-- New voices start at a zero-crossing and `amp = 0`, then slew amp.
-- Slew increment and amp. A saw at phase 0 is -1; that is a click if amp is already up.
-- Apply UI chord/strum **on the audio thread at a buffer boundary**. Main must only enqueue.
-
-## Audio thread
-
-Write samples. No `MIDISend`, no `dispatch_async`, no graph rebuild. MIDI is queued; flush off-thread.
+The glitchy click is a **discontinuity or render hitch**, not a short envelope.
 
 ## Engine
 
-Build once. Rotate/screenshot/system sounds must never `rebuild`, `connect`, `stop`, or `setActive(false)`. If the engine already stopped, only `start()`. Reconnect only if `start()` fails.
+Build once. Rotate, screenshot, and system sounds must never `rebuild`, `connect`, `stop`, or `setActive(false)`. If the engine already stopped, only `start()`. Reconnect only if `start()` fails. Loading a sound into a sampler is not a graph rebuild.
+
+## Audio thread
+
+Write samples. No `MIDISend`, no `dispatch_async`, no graph rebuild. MIDI is sent off the audio thread.

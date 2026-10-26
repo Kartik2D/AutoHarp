@@ -25,6 +25,21 @@ private struct SettingsList: View {
 
     var body: some View {
         List {
+            DisclosureGroup("Sound") {
+                Toggle("Drone", isOn: $instrument.droneEnabled)
+                partControls("Drone", Voice.waves + Instrument.droneVoices, $instrument.droneProgram, level: $instrument.droneLevel)
+                partControls("Strum", Voice.waves + Instrument.strumVoices, $instrument.strumProgram, level: $instrument.strumLevel)
+            }
+            DisclosureGroup("Metronome") {
+                labeledSlider("Tempo", value: "\(Int(instrument.metroBPM.rounded())) BPM") {
+                    Slider(value: $instrument.metroBPM, in: 40...240, step: 1)
+                }
+                Button("Tap Tempo") { instrument.tapTempo() }
+                Toggle("Snap to Beat", isOn: $instrument.metroSync)
+                labeledSlider("Level", value: "\(Int((instrument.metroLevel * 100).rounded()))%") {
+                    Slider(value: $instrument.metroLevel, in: 0...1)
+                }
+            }
             DisclosureGroup("View") {
                 Menu {
                     ForEach(HarpTheme.allCases, id: \.self) { theme in
@@ -40,69 +55,60 @@ private struct SettingsList: View {
                         }
                     }
                 } label: {
-                    HStack {
-                        Text("Theme")
-                        Spacer()
-                        Text(instrument.theme.title).foregroundStyle(.secondary)
-                    }
+                    row("Theme", instrument.theme.title)
                 }
                 Menu {
-                    Button {
-                        instrument.coloring = 0
-                    } label: {
+                    Button { instrument.coloring = 0 } label: {
                         HStack {
                             Text("Chromatic")
                             if instrument.coloring == 0 { Image(systemName: "checkmark") }
                         }
                     }
-                    Button {
-                        instrument.coloring = 1
-                    } label: {
+                    Button { instrument.coloring = 1 } label: {
                         HStack {
                             Text("Fifths")
                             if instrument.coloring == 1 { Image(systemName: "checkmark") }
                         }
                     }
                 } label: {
-                    HStack {
-                        Text("Coloring")
-                        Spacer()
-                        Text(instrument.coloring == 0 ? "Chromatic" : "Fifths")
-                            .foregroundStyle(.secondary)
-                    }
+                    row("Coloring", instrument.coloring == 0 ? "Chromatic" : "Fifths")
                 }
                 Toggle("Playable Piano Keys", isOn: $instrument.pianoEnabled)
             }
-            DisclosureGroup("MIDI") {
-                Toggle("Separate Drone / Strum Channels", isOn: $instrument.splitMIDI)
-            }
-            DisclosureGroup("Metronome") {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Tempo")
-                        Spacer()
-                        Text("\(Int(instrument.metroBPM.rounded())) BPM")
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    .font(.subheadline)
-                    Slider(value: $instrument.metroBPM, in: 40...240, step: 1)
-                }
-                .padding(.vertical, 2)
-                Button("Tap Tempo") { instrument.tapTempo() }
-                Toggle("Snap to Beat", isOn: $instrument.metroSync)
-                DisclosureGroup("Voice") {
-                    SynthControls(wave: instrument.metroWave, attack: instrument.metroAttack, release: instrument.metroRelease, sustain: instrument.metroSustain, volume: instrument.metroVolume)
-                }
-            }
-            DisclosureGroup("Drone") {
-                SynthControls(enabled: $instrument.droneEnabled, wave: instrument.droneWave, attack: instrument.droneAttack, release: instrument.droneRelease, sustain: instrument.droneSustain, volume: instrument.droneVolume)
-            }
-            DisclosureGroup("Strum") {
-                SynthControls(wave: instrument.strumWave, attack: instrument.strumAttack, release: instrument.strumRelease, sustain: instrument.strumSustain, volume: instrument.strumVolume)
-            }
         }
         .navigationSplitViewColumnWidth(min: 200, ideal: 260)
+    }
+
+    @ViewBuilder
+    private func partControls(_ title: String, _ voices: [Voice], _ program: Binding<Int>, level: Binding<Float>) -> some View {
+        Text(title).font(.subheadline).foregroundStyle(.secondary)
+        Picker("Instrument", selection: program) {
+            ForEach(voices) { Text($0.name).tag($0.program) }
+        }
+        labeledSlider("Level", value: "\(Instrument.velocity(level.wrappedValue))") {
+            Slider(value: level, in: 0...1)
+        }
+    }
+
+    private func row(_ title: String, _ value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value).foregroundStyle(.secondary).lineLimit(1)
+        }
+    }
+
+    private func labeledSlider(_ title: String, value: String, @ViewBuilder slider: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(value).foregroundStyle(.secondary).monospacedDigit()
+            }
+            .font(.subheadline)
+            slider()
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -111,19 +117,7 @@ private struct HarpDetail: View {
 
     var body: some View {
         @Bindable var host = instrument
-        CircleOfFifthsView(
-            noteParam: host.noteParam,
-            gateParam: host.gateParam,
-            qualityParam: host.qualityParam,
-            layoutParam: host.layoutParam,
-            coloringParam: host.coloringParam,
-            metroOnParam: host.metroOnParam,
-            metroBPMParam: host.metroBPMParam,
-            metroSyncParam: host.metroSyncParam,
-            pianoEnabled: host.pianoEnabled,
-            retuneChord: { host.applyChord() },
-            secondsToNextBeat: { host.secondsToNextBeat() }
-        )
+        CircleOfFifthsView(instrument: instrument)
         .environment(\.harpTheme, host.theme)
         .preferredColorScheme(host.theme.isLight ? .light : .dark)
         .toolbar { chrome }
@@ -178,71 +172,6 @@ private struct HarpDetail: View {
             }
             .labelStyle(.iconOnly)
         }
-    }
-}
-
-private struct SynthControls: View {
-    var enabled: Binding<Bool>?
-    var wave: Knob
-    var attack: Knob
-    var release: Knob
-    var sustain: Knob
-    var volume: Knob
-
-    var body: some View {
-        if let enabled {
-            Toggle("Enabled", isOn: enabled)
-        }
-        WavePicker(param: wave)
-        ParamSlider(title: "Attack", param: attack, suffix: "ms")
-        ParamSlider(title: "Release", param: release, suffix: "ms")
-        ParamSlider(title: "Sustain", param: sustain, percent: true)
-        ParamSlider(title: "Velocity", param: volume, percent: true)
-    }
-}
-
-private struct WavePicker: View {
-    var param: Knob
-
-    var body: some View {
-        Picker("Waveform", selection: wave) {
-            Text("Sine").tag(0)
-            Text("Triangle").tag(1)
-            Text("Saw").tag(2)
-            Text("Square").tag(3)
-        }
-    }
-
-    private var wave: Binding<Int> {
-        Binding(get: { Int(param.value.rounded()) }, set: { param.value = Float($0) })
-    }
-}
-
-private struct ParamSlider: View {
-    let title: String
-    var param: Knob
-    var suffix = ""
-    var percent = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                Spacer()
-                Text(label)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            .font(.subheadline)
-            Slider(value: Bindable(param).value, in: param.min...param.max)
-        }
-        .padding(.vertical, 2)
-    }
-
-    private var label: String {
-        if percent { return String(format: "%.0f%%", param.value * 100) }
-        if suffix.isEmpty { return String(format: "%.2f", param.value) }
-        return String(format: "%.0f \(suffix)", param.value)
     }
 }
 

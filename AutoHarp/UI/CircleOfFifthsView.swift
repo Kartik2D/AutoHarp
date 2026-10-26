@@ -9,17 +9,7 @@ import SwiftUI
 import UIKit
 
 struct CircleOfFifthsView: View {
-        var noteParam: Knob
-        var gateParam: Knob
-        var qualityParam: Knob
-        var layoutParam: Knob
-        var coloringParam: Knob
-        var metroOnParam: Knob
-        var metroBPMParam: Knob
-        var metroSyncParam: Knob
-        var pianoEnabled = false
-    var retuneChord: () -> Void = {}
-    var secondsToNextBeat: () -> TimeInterval = { 0 }
+    var instrument: Instrument
     @Environment(\.harpTheme) private var theme
     @State private var chordOn = false
     @State private var latched = (root: 0, quality: 0)
@@ -38,11 +28,12 @@ struct CircleOfFifthsView: View {
     @State private var loops = LoopSlots()
     @State private var playTask: Task<Void, Never>?
     @State private var beatTask: Task<Void, Never>?
-    private var isFifths: Bool { layoutParam.value >= 0.5 }
-    private var fifthsColor: Bool { coloringParam.value >= 0.5 }
+    private var isFifths: Bool { instrument.layout >= 1 }
+    private var fifthsColor: Bool { instrument.coloring >= 1 }
+    private var pianoEnabled: Bool { instrument.pianoEnabled }
     private var playingLoop: ChordLooper? { loops.slots.first { $0.isPlaying } }
     private var recorder: ChordLooper? { loops.slots.first { $0.phase == .armed || $0.phase == .recording } }
-    private var shouldSnap: Bool { metroSyncParam.value >= 0.5 && metroOnParam.value >= 0.5 }
+    private var shouldSnap: Bool { instrument.metroSync && instrument.metroEnabled }
 
     private var tint: Color {
         OmnichordChords.page(on: chordOn, pc: latched.root, fifths: fifthsColor, theme: theme)
@@ -186,6 +177,11 @@ struct CircleOfFifthsView: View {
         .onChange(of: pianoEnabled) { _, on in
             if !on { applyPiano([]) }
         }
+        .onChange(of: instrument.droneEnabled) { _, on in
+            guard chordOn else { return }
+            let notes = Set(OmnichordChords.padNotes(pc: latched.root, quality: latched.quality))
+            Notes.shared.hold(on ? notes : [], .drone)
+        }
         .background {
             tint
                 .ignoresSafeArea()
@@ -237,10 +233,9 @@ struct CircleOfFifthsView: View {
         let table = OmnichordChords.harpNotes(pc: latched.root, quality: latched.quality)
         var nextSounding: [Int: UInt8] = [:]
         for i in next where table.indices.contains(i) { nextSounding[i] = table[i] }
-        for (i, note) in strumSounding where nextSounding[i] != note { Harp.shared.release(note) }
         var added = Set<Int>()
         for (i, note) in nextSounding where strumSounding[i] != note {
-            Harp.shared.pluck(note)
+            Notes.shared.strike(note, .strum)
             added.insert(i)
         }
         strumActive = next
@@ -252,10 +247,9 @@ struct CircleOfFifthsView: View {
         recorder?.noteStrum(next)
     }
 
-    // ponytail: Harp has no refcount; same MIDI from pad+piano can cut the other
     private func applyPiano(_ next: Set<UInt8>) {
-        for note in pianoHeld where !next.contains(note) { Harp.shared.release(note) }
-        for note in next where !pianoHeld.contains(note) { Harp.shared.pluck(note) }
+        for note in pianoHeld where !next.contains(note) { Notes.shared.damp(note, .strum) }
+        for note in next where !pianoHeld.contains(note) { Notes.shared.strike(note, .strum) }
         pianoHeld = next
         recorder?.notePiano(next)
     }
@@ -274,15 +268,18 @@ struct CircleOfFifthsView: View {
         if on {
             latched = (root, quality)
             chordOn = true
-            qualityParam.value = AUValue(quality)
-            noteParam.value = AUValue(48 + root)
-            retuneChord()
-            gateParam.value = 1
-            if !strumActive.isEmpty { applyStrum(strumActive) }
+            let harp = Set(OmnichordChords.harpNotes(pc: root, quality: quality))
+            Notes.shared.damp(except: harp, .strum)
+            pianoHeld.formIntersection(harp)
+            if instrument.droneEnabled {
+                Notes.shared.hold(Set(OmnichordChords.padNotes(pc: root, quality: quality)), .drone)
+            }
         } else {
             chordOn = false
-            gateParam.value = 0
+            Notes.shared.damp(except: [], .strum)
+            Notes.shared.hold([], .drone)
             applyStrum([])
+            applyPiano([])
         }
     }
 
@@ -297,6 +294,8 @@ struct CircleOfFifthsView: View {
         playTask = nil
         playingLoop?.stopKeepingTake()
         clearQueue()
+        Notes.shared.damp(except: [], .strum)
+        Notes.shared.hold([], .drone)
         applyStrum([])
         applyPiano([])
     }
@@ -357,12 +356,12 @@ struct CircleOfFifthsView: View {
     }
 
     private func beatPeriod() -> TimeInterval {
-        60 / max(1, Double(metroBPMParam.value))
+        60 / max(1, Double(instrument.metroBPM))
     }
 
     private func nextBeatWait() -> TimeInterval {
         guard shouldSnap else { return 0 }
-        return max(0, secondsToNextBeat())
+        return max(0, instrument.secondsToNextBeat())
     }
 
     private func startPlayback(_ i: Int, snap: Bool = true) {

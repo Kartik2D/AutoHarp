@@ -2,93 +2,61 @@
 //  Instrument.swift
 //  AutoHarp
 //
-//  Local monitor + MIDI out. No Audio Unit host.
+//  Sampler monitor + MIDI out. The loaded sound decides how a note rings.
 //
 
 import AVFoundation
-import CoreMIDI
 import Foundation
 import UIKit
 
-@Observable
-final class Knob {
-    var value: Float {
-        didSet { if value != oldValue { apply?(value) } }
-    }
-    let min: Float
-    let max: Float
-    var apply: ((Float) -> Void)?
+struct Voice: Identifiable {
+    /// A SoundFont program, or a negative wave number.
+    let program: Int
+    let name: String
+    var id: Int { program }
 
-    init(_ value: Float, min: Float = 0, max: Float = 1, apply: ((Float) -> Void)? = nil) {
-        self.value = value
-        self.min = min
-        self.max = max
-        self.apply = apply
-        apply?(value)
-    }
-}
-
-final class DSP: @unchecked Sendable {
-    var kernel = AutoHarpExtensionDSPKernel()
-    var muted = false
-
-    func set(_ address: AutoHarpExtensionParameterAddress, _ value: Float) {
-        kernel.setParameter(address.rawValue, value)
-    }
-
-    func render(_ sampleTime: Float64, _ frames: AVAudioFrameCount, _ abl: UnsafeMutablePointer<AudioBufferList>) {
-        kernel.process(AUEventSampleTime(sampleTime), frames, abl, 0)
-        guard muted else { return }
-        for buf in UnsafeMutableAudioBufferListPointer(abl) {
-            if let p = buf.mData { memset(p, 0, Int(buf.mDataByteSize)) }
-        }
-    }
+    static let waves = Wave.allCases.map { Voice(program: -1 - $0.rawValue, name: $0.name) }
 }
 
 @Observable
 @MainActor
 final class Instrument {
-    let dsp: DSP
+    /// GeneralUser GS bank 0. Drone voices sustain while held; strum voices fade on their own.
+    static let droneVoices = [
+        Voice(program: 89, name: "Warm Pad"),
+        Voice(program: 94, name: "Halo Pad"),
+        Voice(program: 91, name: "Space Voice"),
+        Voice(program: 49, name: "Strings"),
+        Voice(program: 52, name: "Choir"),
+        Voice(program: 19, name: "Pipe Organ"),
+        Voice(program: 20, name: "Reed Organ"),
+        Voice(program: 21, name: "Accordion"),
+    ]
+    static let strumVoices = [
+        Voice(program: 46, name: "Harp"),
+        Voice(program: 24, name: "Nylon Guitar"),
+        Voice(program: 25, name: "Steel Guitar"),
+        Voice(program: 6, name: "Harpsichord"),
+        Voice(program: 15, name: "Dulcimer"),
+        Voice(program: 45, name: "Pizzicato Strings"),
+        Voice(program: 108, name: "Kalimba"),
+        Voice(program: 11, name: "Vibraphone"),
+        Voice(program: 8, name: "Celesta"),
+        Voice(program: 10, name: "Music Box"),
+    ]
+    /// Two full parts of stacked notes summed at 0 dB trip the device limiter.
+    private static let headroom: Float = -12
+
     private let engine = AVAudioEngine()
-    private var source: AVAudioSourceNode?
-
-    let noteParam: Knob
-    let gateParam: Knob
-    let qualityParam: Knob
-    let layoutParam: Knob
-    let coloringParam: Knob
-    let metroOnParam: Knob
-    let metroBPMParam: Knob
-    let metroSyncParam: Knob
-
-    let droneWave: Knob
-    let droneAttack: Knob
-    let droneRelease: Knob
-    let droneSustain: Knob
-    let droneVolume: Knob
-    let strumWave: Knob
-    let strumAttack: Knob
-    let strumRelease: Knob
-    let strumSustain: Knob
-    let strumVolume: Knob
-    let metroWave: Knob
-    let metroAttack: Knob
-    let metroRelease: Knob
-    let metroSustain: Knob
-    let metroVolume: Knob
+    private let metro = MetroClick()
+    private let droneOsc = Oscillator()
+    private let strumOsc = Oscillator()
+    private var built = false
+    private var droneSampler: AVAudioUnitSampler?
+    private var strumSampler: AVAudioUnitSampler?
 
     var droneEnabled = UserDefaults.standard.object(forKey: "AutoHarp.droneEnabled") as? Bool ?? true {
-        didSet {
-            UserDefaults.standard.set(droneEnabled, forKey: "AutoHarp.droneEnabled")
-            dsp.kernel.setDroneEnabled(droneEnabled)
-        }
-    }
-
-    var splitMIDI = UserDefaults.standard.bool(forKey: "AutoHarp.splitMIDI") {
-        didSet {
-            UserDefaults.standard.set(splitMIDI, forKey: "AutoHarp.splitMIDI")
-            dsp.kernel.setSplitMIDI(splitMIDI)
-        }
+        didSet { UserDefaults.standard.set(droneEnabled, forKey: "AutoHarp.droneEnabled") }
     }
 
     var pianoEnabled = UserDefaults.standard.bool(forKey: "AutoHarp.pianoEnabled") {
@@ -106,15 +74,11 @@ final class Instrument {
     }
 
     var soundEnabled = true {
-        didSet { dsp.muted = !soundEnabled }
+        didSet { engine.mainMixerNode.outputVolume = soundEnabled ? 1 : 0 }
     }
 
     var layout = min(1, UserDefaults.standard.integer(forKey: "AutoHarp.chordLayout")) {
-        didSet {
-            UserDefaults.standard.set(layout, forKey: "AutoHarp.chordLayout")
-            layoutParam.value = Float(layout)
-            coloringParam.value = Float(coloring)
-        }
+        didSet { UserDefaults.standard.set(layout, forKey: "AutoHarp.chordLayout") }
     }
 
     private var gridColoring = UserDefaults.standard.integer(forKey: "AutoHarp.chordColoring")
@@ -130,87 +94,72 @@ final class Instrument {
                 fifthsColoring = newValue
                 UserDefaults.standard.set(newValue, forKey: "AutoHarp.fifthsColoring")
             }
-            coloringParam.value = Float(newValue)
         }
     }
 
     var metroEnabled = false {
-        didSet { metroOnParam.value = metroEnabled ? 1 : 0 }
+        didSet { metro.set(on: metroEnabled) }
     }
 
-    var metroBPM: Float {
-        get { metroBPMParam.value }
-        set { metroBPMParam.value = min(240, max(40, newValue)) }
+    var metroBPM: Float = (UserDefaults.standard.object(forKey: "AutoHarp.metroBPM") as? Float) ?? 120 {
+        didSet {
+            let bpm = min(240, max(40, metroBPM))
+            if bpm != metroBPM { metroBPM = bpm; return }
+            UserDefaults.standard.set(bpm, forKey: "AutoHarp.metroBPM")
+            metro.set(bpm: bpm)
+        }
     }
 
-    var metroSync: Bool {
-        get { metroSyncParam.value >= 0.5 }
-        set { metroSyncParam.value = newValue ? 1 : 0 }
+    var metroSync = UserDefaults.standard.object(forKey: "AutoHarp.metroSync") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(metroSync, forKey: "AutoHarp.metroSync") }
+    }
+
+    var metroLevel: Float = (UserDefaults.standard.object(forKey: "AutoHarp.metroLevel") as? Float) ?? 0.35 {
+        didSet {
+            UserDefaults.standard.set(metroLevel, forKey: "AutoHarp.metroLevel")
+            metro.set(volume: metroLevel)
+        }
+    }
+
+    var droneLevel: Float = (UserDefaults.standard.object(forKey: "AutoHarp.droneLevel") as? Float) ?? (Float(100) / 127) {
+        didSet {
+            UserDefaults.standard.set(droneLevel, forKey: "AutoHarp.droneLevel")
+            Notes.shared.velocity[Notes.Part.drone.rawValue] = Self.velocity(droneLevel)
+            applyGain(droneLevel, droneSampler)
+        }
+    }
+
+    var strumLevel: Float = (UserDefaults.standard.object(forKey: "AutoHarp.strumLevel") as? Float) ?? (Float(100) / 127) {
+        didSet {
+            UserDefaults.standard.set(strumLevel, forKey: "AutoHarp.strumLevel")
+            Notes.shared.velocity[Notes.Part.strum.rawValue] = Self.velocity(strumLevel)
+            applyGain(strumLevel, strumSampler)
+        }
+    }
+
+    var droneProgram = UserDefaults.standard.object(forKey: "AutoHarp.droneProgram") as? Int ?? 89 {
+        didSet { UserDefaults.standard.set(droneProgram, forKey: "AutoHarp.droneProgram"); load(.drone) }
+    }
+
+    var strumProgram = UserDefaults.standard.object(forKey: "AutoHarp.strumProgram") as? Int ?? 46 {
+        didSet { UserDefaults.standard.set(strumProgram, forKey: "AutoHarp.strumProgram"); load(.strum) }
+    }
+
+    /// A wave number for the built-in synth, or nil when the sampler plays.
+    static func wave(_ program: Int) -> Wave? {
+        let raw = -1 - program
+        return Wave(rawValue: raw)
     }
 
     private var tempoTaps: [TimeInterval] = []
     private var armed = false
     private var inForeground = true
-    private var midiFlush: DispatchSourceTimer?
 
     init() {
-        let core = DSP()
-        dsp = core
-        func bind(_ address: AutoHarpExtensionParameterAddress, _ value: Float, min: Float = 0, max: Float = 1) -> Knob {
-            Knob(value, min: min, max: max) { core.set(address, $0) }
-        }
-
-        noteParam = bind(.midiNoteNumber, 60, min: 0, max: 127)
-        gateParam = bind(.sendNote, 0)
-        qualityParam = bind(.chordQuality, 0, min: 0, max: 8)
-        layoutParam = bind(.layout, Float(min(1, UserDefaults.standard.integer(forKey: "AutoHarp.chordLayout"))))
-        coloringParam = bind(.coloring, Float(UserDefaults.standard.integer(forKey: "AutoHarp.chordLayout") == 0
-            ? UserDefaults.standard.integer(forKey: "AutoHarp.chordColoring")
-            : (UserDefaults.standard.object(forKey: "AutoHarp.fifthsColoring") as? Int ?? 1)))
-        metroOnParam = bind(.metroOn, 0)
-        let storedBPM = (UserDefaults.standard.object(forKey: "AutoHarp.metroBPM") as? Float) ?? 120
-        metroBPMParam = Knob(storedBPM, min: 40, max: 240) { v in
-            core.set(.metroBPM, v)
-            UserDefaults.standard.set(v, forKey: "AutoHarp.metroBPM")
-        }
-        let storedSync = UserDefaults.standard.object(forKey: "AutoHarp.metroSync") as? Bool ?? true
-        metroSyncParam = Knob(storedSync ? 1 : 0) { v in
-            core.set(.metroSync, v)
-            UserDefaults.standard.set(v >= 0.5, forKey: "AutoHarp.metroSync")
-        }
-
-        droneWave = bind(.droneWave, 0, min: 0, max: 3)
-        droneAttack = bind(.droneAttack, 5, min: 1, max: 2000)
-        droneRelease = bind(.droneRelease, 150, min: 10, max: 4000)
-        droneSustain = bind(.droneSustain, 1)
-        droneVolume = bind(.droneVolume, 0.3)
-        strumWave = bind(.strumWave, 2, min: 0, max: 3)
-        strumAttack = bind(.strumAttack, 2, min: 1, max: 2000)
-        strumRelease = bind(.strumRelease, 2500, min: 10, max: 4000)
-        strumSustain = bind(.strumSustain, 0)
-        strumVolume = bind(.strumVolume, 0.18)
-        metroWave = bind(.metroWave, 3, min: 0, max: 3)
-        metroAttack = bind(.metroAttack, 1, min: 1, max: 2000)
-        metroRelease = bind(.metroRelease, 40, min: 10, max: 4000)
-        metroSustain = bind(.metroSustain, 0)
-        metroVolume = bind(.metroVolume, 0.35)
-
-        dsp.kernel.setDroneEnabled(droneEnabled)
-        dsp.kernel.setSplitMIDI(splitMIDI)
-        startMIDIFlush()
-
-        core.kernel.setMIDI1OutputEventBlock { _, _, length, data in
-            if length >= 3 {
-                let status = data[0]
-                if status & 0xF0 == 0x90 || status & 0xF0 == 0x80 {
-                    MIDIManager.sendNote(on: status & 0xF0 == 0x90 && data[2] > 0, data[1], velocity: data[2], channel: status & 0x0F)
-                }
-            }
-            return noErr
-        }
-        Harp.shared.play = { on, note in
-            if on { core.kernel.strumVoiceOn(note) } else { core.kernel.strumVoiceOff(note) }
-        }
+        Notes.shared.velocity[Notes.Part.drone.rawValue] = Self.velocity(droneLevel)
+        Notes.shared.velocity[Notes.Part.strum.rawValue] = Self.velocity(strumLevel)
+        metro.set(bpm: metroBPM)
+        metro.set(volume: metroLevel)
     }
 
     func arm() {
@@ -221,12 +170,8 @@ final class Instrument {
         wake()
     }
 
-    func applyChord() {
-        dsp.kernel.applyLiveChord()
-    }
-
     func secondsToNextBeat() -> TimeInterval {
-        dsp.kernel.secondsToNextBeat()
+        metro.secondsToNextBeat()
     }
 
     func tapTempo() {
@@ -240,20 +185,40 @@ final class Instrument {
         metroBPM = Float(min(240, max(40, 60 / (sum / TimeInterval(recent.count - 1)))))
     }
 
-    private func startMIDIFlush() {
-        guard midiFlush == nil else { return }
-        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "autoharp.midi.flush"))
-        timer.schedule(deadline: .now(), repeating: .milliseconds(2), leeway: .milliseconds(1))
-        let dsp = self.dsp
-        timer.setEventHandler { dsp.kernel.flushMIDI() }
-        timer.resume()
-        midiFlush = timer
+    static func velocity(_ level: Float) -> UInt8 {
+        UInt8(max(1, min(127, Int((level * 127).rounded()))))
+    }
+
+    private func load(_ part: Notes.Part) {
+        let program = part == .drone ? droneProgram : strumProgram
+        let ch = part.rawValue
+        let osc = part == .drone ? droneOsc : strumOsc
+        let level = part == .drone ? droneLevel : strumLevel
+        osc.set(level: level)
+        osc.set(release: part == .strum ? 2.5 : 0)
+        if let wave = Self.wave(program) {
+            osc.set(wave: wave)
+            Notes.shared.wave[ch] = wave.rawValue
+        } else {
+            Notes.shared.wave[ch] = -1
+            if let sampler = part == .drone ? droneSampler : strumSampler,
+               let url = Bundle.main.url(forResource: "GeneralUser-GS", withExtension: "sf2") {
+                try? sampler.loadSoundBankInstrument(at: url, program: UInt8(clamping: program), bankMSB: 0x79, bankLSB: 0)
+            }
+        }
+        Notes.shared.replay(part)
+    }
+
+    private func applyGain(_ level: Float, _ sampler: AVAudioUnitSampler?) {
+        sampler?.masterGain = level <= 0.001 ? -96 : 20 * log10(level) + Self.headroom
+        droneOsc.set(level: droneLevel)
+        strumOsc.set(level: strumLevel)
     }
 
     private func wake() {
         MIDIManager.outputEnabled = true
         activateSession()
-        if source == nil { build() }
+        if !built { build() }
         resumeIfNeeded()
     }
 
@@ -281,19 +246,51 @@ final class Instrument {
 
     /// Build once. Rotate/screenshot must never get here, stop the engine, or deactivate the session.
     private func build() {
-        let sr = max(AVAudioSession.sharedInstance().sampleRate, 44100)
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 2) else { return }
-        dsp.kernel.initialize(format.sampleRate)
-        let dsp = self.dsp
-        let node = AVAudioSourceNode { _, timestamp, frameCount, abl in
-            dsp.render(timestamp.pointee.mSampleTime, frameCount, abl)
+        let rate = max(AVAudioSession.sharedInstance().sampleRate, 44100)
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2) else { return }
+        metro.prepare(rate: rate)
+        droneOsc.prepare(rate: rate)
+        strumOsc.prepare(rate: rate)
+        Notes.shared.synth = [droneOsc, strumOsc]
+        let drone = AVAudioUnitSampler()
+        let strum = AVAudioUnitSampler()
+        droneSampler = drone
+        strumSampler = strum
+        Notes.shared.sampler[Notes.Part.drone.rawValue] = drone
+        Notes.shared.sampler[Notes.Part.strum.rawValue] = strum
+        let click = metro
+        let droneWave = droneOsc
+        let strumWave = strumOsc
+        let node = AVAudioSourceNode(format: format) { _, _, frameCount, abl in
+            click.render(frameCount, abl)
             return noErr
         }
-        source = node
+        let droneSynth = AVAudioSourceNode(format: format) { _, _, frameCount, abl in
+            droneWave.render(frameCount, abl)
+            return noErr
+        }
+        let strumSynth = AVAudioSourceNode(format: format) { _, _, frameCount, abl in
+            strumWave.render(frameCount, abl)
+            return noErr
+        }
+        engine.attach(drone)
+        engine.attach(strum)
         engine.attach(node)
+        engine.attach(droneSynth)
+        engine.attach(strumSynth)
+        engine.connect(drone, to: engine.mainMixerNode, format: nil)
+        engine.connect(strum, to: engine.mainMixerNode, format: nil)
         engine.connect(node, to: engine.mainMixerNode, format: format)
+        engine.connect(droneSynth, to: engine.mainMixerNode, format: format)
+        engine.connect(strumSynth, to: engine.mainMixerNode, format: format)
         engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
+        applyGain(droneLevel, drone)
+        applyGain(strumLevel, strum)
+        engine.mainMixerNode.outputVolume = soundEnabled ? 1 : 0
+        load(.drone)
+        load(.strum)
         engine.prepare()
+        built = true
     }
 
     private func observeAudio() {

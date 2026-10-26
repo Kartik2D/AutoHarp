@@ -8,29 +8,7 @@
 
 /* Begin PBXFileReference section */
 		9B5E62A0305436CC002C19EA /* AutoHarp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AutoHarp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		9B5E62C6305436CE002C19EA /* AutoHarpExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AutoHarpExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		9B5E62F1305436CE002C19EA /* Exceptions for "AutoHarpExtension" folder in "AutoHarpExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 9B5E62C5305436CE002C19EA /* AutoHarpExtension */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		9B5E62F5305436CE002C19EA /* Exceptions for "AutoHarpExtension" folder in "Copy Bundle Resources" phase from "AutoHarpExtension" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = 9B5E62C4305436CE002C19EA /* Resources */;
-			membershipExceptions = (
-				Common/DSP/AutoHarpExtensionAUProcessHelper.hpp,
-				DSP/AutoHarpExtensionDSPKernel.hpp,
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		9B5E62A2305436CC002C19EA /* AutoHarp */ = {
@@ -38,26 +16,10 @@
 			path = AutoHarp;
 			sourceTree = "<group>";
 		};
-		9B5E62CA305436CE002C19EA /* AutoHarpExtension */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				9B5E62F1305436CE002C19EA /* Exceptions for "AutoHarpExtension" folder in "AutoHarpExtension" target */,
-				9B5E62F5305436CE002C19EA /* Exceptions for "AutoHarpExtension" folder in "Copy Bundle Resources" phase from "AutoHarpExtension" target */,
-			);
-			path = AutoHarpExtension;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		9B5E629D305436CC002C19EA /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		9B5E62C3305436CE002C19EA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -71,7 +33,6 @@
 			isa = PBXGroup;
 			children = (
 				9B5E62A2305436CC002C19EA /* AutoHarp */,
-				9B5E62CA305436CE002C19EA /* AutoHarpExtension */,
 				9B5E62A1305436CC002C19EA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -80,7 +41,6 @@
 			isa = PBXGroup;
 			children = (
 				9B5E62A0305436CC002C19EA /* AutoHarp.app */,
-				9B5E62C6305436CE002C19EA /* AutoHarpExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -110,28 +70,6 @@
 			productReference = 9B5E62A0305436CC002C19EA /* AutoHarp.app */;
 			productType = "com.apple.product-type.application";
 		};
-		9B5E62C5305436CE002C19EA /* AutoHarpExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 9B5E62F2305436CE002C19EA /* Build configuration list for PBXNativeTarget "AutoHarpExtension" */;
-			buildPhases = (
-				9B5E62C2305436CE002C19EA /* Sources */,
-				9B5E62C3305436CE002C19EA /* Frameworks */,
-				9B5E62C4305436CE002C19EA /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				9B5E62CA305436CE002C19EA /* AutoHarpExtension */,
-			);
-			name = AutoHarpExtension;
-			packageProductDependencies = (
-			);
-			productName = AutoHarpExtension;
-			productReference = 9B5E62C6305436CE002C19EA /* AutoHarpExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -143,9 +81,6 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					9B5E629F305436CC002C19EA = {
-						CreatedOnToolsVersion = 26.2;
-					};
-					9B5E62C5305436CE002C19EA = {
 						CreatedOnToolsVersion = 26.2;
 					};
 				};
@@ -165,20 +100,12 @@
 			projectRoot = "";
 			targets = (
 				9B5E629F305436CC002C19EA /* AutoHarp */,
-				9B5E62C5305436CE002C19EA /* AutoHarpExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		9B5E629E305436CC002C19EA /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		9B5E62C4305436CE002C19EA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -195,96 +122,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9B5E62C2305436CE002C19EA /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		9B5E62F3305436CE002C19EA /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
-				CLANG_CXX_LIBRARY = "libc++";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = AJTD92355K;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AutoHarpExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = AutoHarpExtension;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = example.AutoHarp.AutoHarpExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "AutoHarpExtension/Common/AutoHarpExtension-Bridging-Header.h";
-				SWIFT_OBJC_INTEROP_MODE = objcxx;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 2;
-				XROS_DEPLOYMENT_TARGET = 26.2;
-			};
-			name = Debug;
-		};
-		9B5E62F4305436CE002C19EA /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
-				CLANG_CXX_LIBRARY = "libc++";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = AJTD92355K;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AutoHarpExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = AutoHarpExtension;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = example.AutoHarp.AutoHarpExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "AutoHarpExtension/Common/AutoHarpExtension-Bridging-Header.h";
-				SWIFT_OBJC_INTEROP_MODE = objcxx;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 2;
-				XROS_DEPLOYMENT_TARGET = 26.2;
-			};
-			name = Release;
-		};
 		9B5E62F6305436CE002C19EA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -418,10 +258,6 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/AutoHarpExtension/DSP",
-					"$(SRCROOT)/AutoHarpExtension/Parameters",
-				);
 				INFOPLIST_FILE = "AutoHarp-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = AutoHarp;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -453,8 +289,6 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "AutoHarp/AutoHarp-Bridging-Header.h";
-				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 2;
@@ -479,10 +313,6 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = (
-					"$(SRCROOT)/AutoHarpExtension/DSP",
-					"$(SRCROOT)/AutoHarpExtension/Parameters",
-				);
 				INFOPLIST_FILE = "AutoHarp-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = AutoHarp;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -514,8 +344,6 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "AutoHarp/AutoHarp-Bridging-Header.h";
-				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 2;
@@ -531,15 +359,6 @@
 			buildConfigurations = (
 				9B5E62F6305436CE002C19EA /* Debug */,
 				9B5E62F7305436CE002C19EA /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		9B5E62F2305436CE002C19EA /* Build configuration list for PBXNativeTarget "AutoHarpExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				9B5E62F3305436CE002C19EA /* Debug */,
-				9B5E62F4305436CE002C19EA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
